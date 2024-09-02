@@ -57,12 +57,14 @@ class OffSerialTrainer:
 
         self.start_time = time.time()
 
+        self.harfang_env = kwargs["harfang_env"]
+
     def step(self):
         # sampling
         sampler_tb_dict = {}
-        if self.iteration % self.sample_interval == 0:
+        if self.iteration % self.sample_interval == 0:  # sample_interval
             with ModuleOnDevice(self.networks, "cpu"):
-                sampler_samples, sampler_tb_dict = self.sampler.sample()
+                sampler_samples, sampler_tb_dict = self.sampler.sample()    # 采样 sample_batch_size 个step，并存入replay buffer
             self.buffer.add_batch(sampler_samples)
 
         # replay
@@ -83,14 +85,17 @@ class OffSerialTrainer:
 
         # log
         if self.iteration % self.log_save_interval == 0:
-            print("Iter = ", self.iteration)
+            # print("Iter = ", self.iteration)
             add_scalars(alg_tb_dict, self.writer, step=self.iteration)
             add_scalars(sampler_tb_dict, self.writer, step=self.iteration)
 
         # evaluate
         if self.iteration % self.eval_interval == 0:
             with ModuleOnDevice(self.networks, "cpu"):
-                total_avg_return = self.evaluator.run_evaluation(self.iteration)
+                if self.harfang_env:
+                    total_avg_return, success_rate, fire_success_rate = self.evaluator.run_evaluation(self.iteration)
+                else:
+                    total_avg_return = self.evaluator.run_evaluation(self.iteration)
 
             if (
                 total_avg_return >= self.best_tar
@@ -107,6 +112,17 @@ class OffSerialTrainer:
                     self.networks.state_dict(),
                     self.save_folder
                     + "/apprfunc/apprfunc_{}_opt.pkl".format(self.iteration),
+                )
+
+            if self.harfang_env:
+                self.writer.add_scalar(
+                    "Evaluation/0. eval return", total_avg_return, self.iteration
+                )
+                self.writer.add_scalar(
+                    "Evaluation/0. eval success rate", success_rate, self.iteration
+                )
+                self.writer.add_scalar(
+                    "Evaluation/0. eval fire success rate", fire_success_rate, self.iteration
                 )
 
             self.writer.add_scalar(

@@ -28,10 +28,16 @@ class Evaluator:
         self.print_time = 0
         self.print_iteration = -1
 
+        self.harfang_env = kwargs["harfang_env"]
+
     def load_state_dict(self, state_dict):
         self.networks.load_state_dict(state_dict)
 
     def run_an_episode(self, iteration, render=True):
+        # harfang
+        success = 0
+        fire_success = 0
+
         if self.print_iteration != iteration:
             self.print_iteration = iteration
             self.print_time = 0
@@ -52,8 +58,15 @@ class Evaluator:
             next_obs, reward, done, next_info = self.env.step(action)
             obs_list.append(obs)
             action_list.append(action)
+
             obs = next_obs
             info = next_info
+
+            # harfang
+            if self.harfang_env:
+                if info['success']: success = 1
+                if info['fire_success']: fire_success = 1
+
             if "TimeLimit.truncated" not in info.keys():
                 info["TimeLimit.truncated"] = False
             # Draw environment animation
@@ -72,13 +85,26 @@ class Evaluator:
                 eval_dict,
             )
         episode_return = sum(reward_list)
-        return episode_return
+        if self.harfang_env:
+            return episode_return, success, fire_success    
+        else: 
+            return episode_return
 
     def run_n_episodes(self, n, iteration):
         episode_return_list = []
-        for _ in range(n):
-            episode_return_list.append(self.run_an_episode(iteration, self.render))
-        return np.mean(episode_return_list)
+        episode_success_list = []
+        episode_fire_success_list = []
+        if self.harfang_env:
+            for _ in range(n):
+                episode_return, success, fire_success = self.run_an_episode(iteration, self.render)
+                episode_return_list.append(episode_return)
+                episode_success_list.append(success)
+                episode_fire_success_list.append(fire_success)
+            return np.mean(episode_return_list), np.mean(episode_success_list), np.mean(episode_fire_success_list)
+        else: 
+            for _ in range(n):
+                episode_return_list.append(self.run_an_episode(iteration, self.render))
+            return np.mean(episode_return_list)
 
     def run_evaluation(self, iteration):
         return self.run_n_episodes(self.num_eval_episode, iteration)
