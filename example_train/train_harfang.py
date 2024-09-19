@@ -1,6 +1,5 @@
 import argparse
 import os
-import harfang_env.dogfight_client as df
 #import numpy as np
 
 from utils.initialization import create_alg,create_buffer,create_env
@@ -120,7 +119,7 @@ if __name__ == "__main__":
         "--buffer_name", type=str, default="replay_buffer", help="Options:replay_buffer/prioritized_replay_buffer"
     )
     # Size of collected samples before training
-    parser.add_argument("--buffer_warm_size", type=int, default=10*6000)    # ！
+    parser.add_argument("--buffer_warm_size", type=int, default=20*6000)    # ！
     # Max size of reply buffer
     parser.add_argument("--buffer_max_size", type=int, default=1000000)
     # Batch size of replay samples from buffer
@@ -146,7 +145,9 @@ if __name__ == "__main__":
     ################################################
     # 7. Data savings
     #parser.add_argument("--save_folder", type=str, default= "B:/code/DSAC/results/DSAC/harfang")
-    parser.add_argument("--save_folder", type=str, default= "B:/code/DSAC/results/DSAC/harfang")
+    parser.add_argument("--env_port", type=int, default=11111)
+    parser.add_argument("--save_folder", type=str, default= "D:/project/DSAC/results/DSAC/harfang/7")
+    parser.add_argument("--plot_folder", type=str, default= "D:/project/DSAC/results/DSAC/harfang/7/plots")
     # Save value/policy every N updates
     parser.add_argument("--apprfunc_save_interval", type=int, default=25*6000)
 

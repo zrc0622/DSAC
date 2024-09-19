@@ -10,7 +10,7 @@ def env_creator(**kwargs):
     df.set_renderless_mode(True)
     df.set_client_update_mode(True)
     try:
-        return gym.make('HarfangEnv-v0')
+        return gym.make('HarfangEnv-r-v0')
     except:
         raise ModuleNotFoundError(
             "Warning: create harfang error"
