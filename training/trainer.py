@@ -36,8 +36,10 @@ class OffSerialTrainer:
         self.apprfunc_save_interval = kwargs["apprfunc_save_interval"]
         self.eval_interval = kwargs["eval_interval"]
         self.best_tar = -inf
+        self.best_taf = -inf
         self.save_folder = kwargs["save_folder"]
         self.iteration = 0
+        self.train_episodes = 0
 
         self.writer = SummaryWriter(log_dir=self.save_folder, flush_secs=20)
         # flush tensorboard at the beginning
@@ -47,9 +49,17 @@ class OffSerialTrainer:
         self.writer.flush()
 
         # pre sampling
-        while self.buffer.size < kwargs["buffer_warm_size"]:
-            samples, _ = self.sampler.sample()
+        warmup_episode = 0
+        # while self.buffer.size < kwargs["buffer_warm_size"]:
+        while warmup_episode < kwargs["buffer_warm_size"]:
+            # samples, _ = self.sampler.sample()
+            samples, _, done = self.sampler.sample()
             self.buffer.add_batch(samples)
+            if done:
+                warmup_episode += 1
+        
+        print(f"explore {warmup_episode} finish! buffersize is {len(self.buffer)}")
+        print('-'*50)
 
         self.use_gpu = kwargs["use_gpu"]
         if self.use_gpu:
@@ -61,10 +71,15 @@ class OffSerialTrainer:
 
     def step(self):
         # sampling
+        if_eval = False
         sampler_tb_dict = {}
         if self.iteration % self.sample_interval == 0:  # sample_interval
-            with ModuleOnDevice(self.networks, "cpu"):
-                sampler_samples, sampler_tb_dict = self.sampler.sample()    # 采样 sample_batch_size 个step，并存入replay buffer
+            # with ModuleOnDevice(self.networks, "cpu"):
+            sampler_samples, sampler_tb_dict, done = self.sampler.sample_gpu()    # 采样 sample_batch_size 个step，并存入replay buffer
+            if done:
+                self.train_episodes += 1
+                if_eval = True
+                print(f"train episode is {self.train_episodes}, iteration is {self.iteration}")
             self.buffer.add_batch(sampler_samples)
 
         # replay
@@ -90,68 +105,45 @@ class OffSerialTrainer:
             add_scalars(sampler_tb_dict, self.writer, step=self.iteration)
 
         # evaluate
-        if self.iteration % self.eval_interval == 0:
-            with ModuleOnDevice(self.networks, "cpu"):
-                if self.harfang_env:
-                    total_avg_return, success_rate, fire_success_rate = self.evaluator.run_evaluation(self.iteration)
-                else:
-                    total_avg_return = self.evaluator.run_evaluation(self.iteration)
+        # if self.iteration % self.eval_interval == 0:
+        if self.train_episodes % self.eval_interval == 0 and if_eval:
+            # with ModuleOnDevice(self.networks, "cpu"):
+            if self.harfang_env:
+                total_avg_return, total_std_return, success_rate, fire_success_rate = self.evaluator.run_evaluation(self.iteration)
+            else:
+                total_avg_return = self.evaluator.run_evaluation(self.iteration)
 
             if (
                 total_avg_return >= self.best_tar
-                and self.iteration >= self.max_iteration / 5
+                or fire_success_rate >= self.best_taf
             ):
-                self.best_tar = total_avg_return
+                self.best_tar = max(total_avg_return, self.best_tar)
+                self.best_taf = max(fire_success_rate, self.best_taf)
                 print("Best return = {}!".format(str(self.best_tar)))
-
-                for filename in os.listdir(self.save_folder + "/apprfunc/"):
-                    if filename.endswith("_opt.pkl"):
-                        os.remove(self.save_folder + "/apprfunc/" + filename)
 
                 torch.save(
                     self.networks.state_dict(),
                     self.save_folder
-                    + "/apprfunc/apprfunc_{}_opt.pkl".format(self.iteration),
+                    + "/apprfunc/apprfunc_{}_{}_{}_opt.pkl".format(self.train_episodes, total_avg_return, fire_success_rate),
                 )
 
             if self.harfang_env:
                 self.writer.add_scalar(
-                    "Evaluation/0. eval return", total_avg_return, self.iteration
+                    "Evaluation/0. eval return", total_avg_return, self.train_episodes
                 )
                 self.writer.add_scalar(
-                    "Evaluation/0. eval success rate", success_rate, self.iteration
+                    "Evaluation/0. std return", total_std_return, self.train_episodes
                 )
                 self.writer.add_scalar(
-                    "Evaluation/0. eval fire success rate", fire_success_rate, self.iteration
+                    "Evaluation/0. eval success rate", success_rate, self.train_episodes
+                )
+                self.writer.add_scalar(
+                    "Evaluation/0. eval fire success rate", fire_success_rate, self.train_episodes
                 )
 
-            self.writer.add_scalar(
-                tb_tags["Buffer RAM of RL iteration"],
-                self.buffer.__get_RAM__(),
-                self.iteration,
-            )
-            self.writer.add_scalar(
-                tb_tags["TAR of RL iteration"], total_avg_return, self.iteration
-            )
-            self.writer.add_scalar(
-                tb_tags["TAR of replay samples"],
-                total_avg_return,
-                self.iteration * self.replay_batch_size,
-            )
-            self.writer.add_scalar(
-                tb_tags["TAR of total time"],
-                total_avg_return,
-                int(time.time() - self.start_time),
-            )
-            self.writer.add_scalar(
-                tb_tags["TAR of collected samples"],
-                total_avg_return,
-                self.sampler.get_total_sample_number(),
-            )
-
-        # save
-        if self.iteration % self.apprfunc_save_interval == 0:
-            self.save_apprfunc()
+        # # save
+        # if self.iteration % self.apprfunc_save_interval == 0:
+        #     self.save_apprfunc()
 
     def train(self):
         while self.iteration < self.max_iteration:

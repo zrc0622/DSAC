@@ -29,6 +29,7 @@ class OffSampler:
         self.act_dim = kwargs["action_dim"]
         self.total_sample_number = 0
         self.reward_scale = 1.0
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 确保可以使用GPU  
         if self.noise_params is not None:
             if self.action_type == "continu":
                 self.noise_processor = GaussNoise(**self.noise_params)
@@ -85,12 +86,75 @@ class OffSampler:
             self.obs = next_obs
             self.info = next_info
             if self.done or next_info["TimeLimit.truncated"]:
+                print(f'done is {self.done}, limit is {next_info["TimeLimit.truncated"]}')
                 self.obs, self.info = self.env.reset()
 
         end_time = time.perf_counter()
         tb_info[tb_tags["sampler_time"]] = (end_time - start_time) * 1000
 
-        return batch_data, tb_info
+        return batch_data, tb_info, self.done or next_info["TimeLimit.truncated"]
+
+    def sample_gpu(self):
+        self.total_sample_number += self.sample_batch_size
+        tb_info = dict()
+        start_time = time.perf_counter()
+        batch_data = []
+
+        for _ in range(self.sample_batch_size):
+            # 将 obs 移动到 GPU
+            batch_obs = torch.from_numpy(np.expand_dims(self.obs, axis=0).astype("float32")).to(self.device)
+
+            # 网络在 GPU 上计算
+            logits = self.networks.policy(batch_obs)
+            action_distribution = self.networks.create_action_distributions(logits)
+            action, logp = action_distribution.sample()
+            
+            # 将 action 和 logp 移回 CPU 以供后续使用
+            action = action.detach().cpu().numpy()[0]
+            logp = logp.detach().cpu().numpy()[0]
+
+            if self.noise_params is not None:
+                action = self.noise_processor.sample(action)
+            
+            # 确保 action 是数组
+            action = np.array(action)
+            if self.action_type == "continu":
+                action_clip = action.clip(self.env.action_space.low, self.env.action_space.high)
+            else:
+                action_clip = action
+
+            # 与环境交互
+            next_obs, reward, self.done, next_info = self.env.step(action_clip)
+            if "TimeLimit.truncated" not in next_info.keys():
+                next_info["TimeLimit.truncated"] = False
+            if next_info["TimeLimit.truncated"]:
+                self.done = False
+            
+            # 构建数据并添加到 batch
+            data = [
+                self.obs.copy(),
+                self.info,
+                action,
+                self.reward_scale * reward,
+                next_obs.copy(),
+                self.done,
+                logp,
+                next_info,
+            ]
+            batch_data.append(tuple(data))
+            
+            # 更新 obs 和 info
+            self.obs = next_obs
+            self.info = next_info
+
+            if self.done or next_info["TimeLimit.truncated"]:
+                print(f'done is {self.done}, limit is {next_info["TimeLimit.truncated"]}')
+                self.obs, self.info = self.env.reset()
+
+        end_time = time.perf_counter()
+        tb_info[tb_tags["sampler_time"]] = (end_time - start_time) * 1000
+
+        return batch_data, tb_info, self.done or next_info["TimeLimit.truncated"]
 
     def get_total_sample_number(self):
         return self.total_sample_number
