@@ -27,6 +27,7 @@ class OffSerialTrainer:
 
         # initialize center network
         if kwargs["ini_network_dir"] is not None:
+            print("load: ", kwargs["ini_network_dir"])
             self.networks.load_state_dict(torch.load(kwargs["ini_network_dir"]))
 
         self.replay_batch_size = kwargs["replay_batch_size"]
@@ -152,6 +153,16 @@ class OffSerialTrainer:
 
         self.save_apprfunc()
         self.writer.flush()
+
+    def eval(self):
+        with ModuleOnDevice(self.networks, "cpu"):
+            if self.harfang_env:
+                print("\nstart evaluate")
+                total_avg_return, success_rate, fire_success_rate = self.evaluator.run_evaluation(self.iteration)
+                print("total avg return: ", total_avg_return, "success rate: ", success_rate, "fire success: ", fire_success_rate)
+                print("end evaluate\n")
+            else:
+                total_avg_return = self.evaluator.run_evaluation(self.iteration)
 
     def save_apprfunc(self):
         torch.save(

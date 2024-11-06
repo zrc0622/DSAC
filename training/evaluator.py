@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import os
 
 from utils.initialization import create_env
 from utils.common_utils import set_seed
@@ -25,6 +26,8 @@ class Evaluator:
         self.action_type = kwargs["action_type"]
         self.policy_func_name = kwargs["policy_func_name"]
         self.save_folder = kwargs["save_folder"]
+        self.plot_folder = kwargs["plot_folder"]
+        os.makedirs(self.plot_folder, exist_ok=True)
         self.eval_save = kwargs.get("eval_save", False)
 
         self.print_time = 0
