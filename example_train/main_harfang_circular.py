@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     ################################################
     # Key Parameters for users
-    parser.add_argument("--env_id", type=str, default="gym_harfangstraightline", help="id of environment") # gym_harfangstraightline or gym_harfangserpentine
+    parser.add_argument("--env_id", type=str, default="gym_harfangcircular", help="id of environment") # gym_harfangstraightline or gym_harfangserpentine
     parser.add_argument("--harfang_env", type=bool, default=True, help="If harfang environment")
     #gym_pendulum can be replaced by other envs in the env_gym folder, such as gym_ant, gym_walker2d... but more complex envs need bigger "max iteration" setting. U can refer to "dsac_mlp_humanoid_offserial.py" to set up.
     parser.add_argument("--algorithm", type=str, default="DSAC_V2", help="DSAC_V2 or DSAC_V1")
@@ -97,7 +97,7 @@ if __name__ == "__main__":
         help="Options: on_serial_trainer, on_sync_trainer, off_serial_trainer, off_async_trainer",
     )
     # Maximum iteration number
-    parser.add_argument("--max_iteration", type=int, default=3000*1500)  
+    parser.add_argument("--max_iteration", type=int, default=3000*1900)  
     
     # 一个iteration中包括了采样、训练
         # 每过sample_interval个iteration，进行一次sample，一次sample与环境交互sample_batch_size个step存入buffer
@@ -143,9 +143,9 @@ if __name__ == "__main__":
     ################################################
     # 7. Data savings
     #parser.add_argument("--save_folder", type=str, default= "B:/code/DSAC/results/DSAC/harfang")
-    parser.add_argument("--save_folder", type=str, default= "E:/code/DSAC/results/DSAC/harfang_straightline_4")
+    parser.add_argument("--save_folder", type=str, default= "E:/code/DSAC/results/DSAC/harfang_circular_4")
     # Save value/policy every N updates
-    parser.add_argument("--apprfunc_save_interval", type=int, default=25*1500)
+    parser.add_argument("--apprfunc_save_interval", type=int, default=25*1900)
 
     # Save key info every N updates
     parser.add_argument("--log_save_interval", type=int, default=1000)

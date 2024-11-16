@@ -10,3 +10,8 @@ register(
     id='HarfangEnv-serpentine',
     entry_point='harfang_env.HarfangEnv_GYM:HarfangSerpentineEnv',
 )
+
+register(
+    id='HarfangEnv-circular',
+    entry_point='harfang_env.HarfangEnv_GYM:HarfangCircularEnv',
+)

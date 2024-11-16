@@ -9,7 +9,7 @@ def env_creator(**kwargs):
     df.set_renderless_mode(True)
     df.set_client_update_mode(True)
     try:
-        env = gym.make('HarfangEnv-straightline')
+        env = gym.make('HarfangEnv-circular')
         return env
     except:
         raise ModuleNotFoundError(

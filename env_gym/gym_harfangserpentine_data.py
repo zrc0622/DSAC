@@ -4,7 +4,7 @@ from harfang_env import dogfight_client as df
 
 def env_creator(**kwargs):
     # connect to harfang
-    df.connect("192.168.193.226", 11111)
+    df.connect("192.168.193.142", 44444)
     df.disable_log()
     df.set_renderless_mode(True)
     df.set_client_update_mode(True)
